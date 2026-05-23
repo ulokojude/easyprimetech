@@ -188,13 +188,37 @@ footer{background:var(--ink);border-top:1px solid rgba(255,255,255,.06);padding:
 </head>
 <body>
 
-<nav>
+<div class="mob-overlay" id="mobOverlay" onclick="closeMobNav()"></div>
+<div class="mob-drawer" id="mobDrawer">
+  <div class="mob-drawer-header">
+    <a class="mob-drawer-logo" href="index.html">Easy<span>Prime</span>Tech</a>
+    <button class="mob-close" onclick="closeMobNav()"><i class="fas fa-times"></i></button>
+  </div>
+  <ul class="mob-nav">
+    <li><a href="index.html"><i class="fas fa-home"></i> Home</a></li>
+    <li><a href="scores.html"><i class="fas fa-chart-bar"></i> My Scores</a></li>
+    <li><a href="attendance.html"><i class="fas fa-calendar-check"></i> Mark Attendance</a></li>
+    <li><a href="status.html"><i class="fas fa-id-card"></i> Check Status</a></li>
+  </ul>
+  <div class="mob-cta-wrap">
+    <a class="mob-cta" href="apply.html">Apply Now</a>
+  </div>
+</div>
 
+<nav>
+  <a class="nav-logo" href="index.html">Easy<span>Prime</span>Tech</a>
   <ul class="nav-links">
     <li><a href="index.html">Home</a></li>
     <li><a href="scores.html">My Scores</a></li>
   </ul>
+  <a class="nav-cta" href="scores.html">My Scores</a>
+  <button class="mob-toggle" onclick="openMobNav()" aria-label="Open menu"><i class="fas fa-bars"></i></button>
 </nav>
+
+<script>
+function openMobNav(){document.getElementById('mobDrawer').classList.add('open');document.getElementById('mobOverlay').classList.add('open');}
+function closeMobNav(){document.getElementById('mobDrawer').classList.remove('open');document.getElementById('mobOverlay').classList.remove('open');}
+</script>
 
 <div class="hero">
   <div class="hero-grid"></div>
@@ -404,6 +428,26 @@ async function goStep2() {
   }
 }
 
+// ─── SERVER TIME HELPER ───────────────────────────────────
+// Fetches true server time so student device clock drift never causes
+// false "expired" errors. Falls back gracefully if the API is unreachable.
+async function getServerTime() {
+  // Try WorldTimeAPI first (free, no key needed)
+  try {
+    const res = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC', { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      return new Date(data.utc_datetime);
+    }
+  } catch(e) { /* network issue — use fallback */ }
+
+  // Fallback: device clock minus 5-minute grace buffer.
+  // This means even if a student's phone clock is up to 5 minutes fast,
+  // the code will still not be seen as expired prematurely.
+  console.warn('Server time unavailable — using device clock with 5-min grace period');
+  return new Date(Date.now() - 5 * 60 * 1000);
+}
+
 // ─── STEP 2 → 3: Validate Code ───────────────────────────
 async function goStep3() {
   const code = document.getElementById('classCode').value.trim().toUpperCase();
@@ -414,7 +458,8 @@ async function goStep3() {
   btn.innerHTML = '<span class="spinner"></span> Verifying...';
 
   try {
-    const now  = new Date();
+    // Use server time — never the student's device clock
+    const now  = await getServerTime();
     const q    = query(
       collection(db, 'attendance_sessions'),
       where('code',   '==', code),
@@ -430,7 +475,7 @@ async function goStep3() {
     const sDoc  = snap.docs[0];
     const sData = sDoc.data();
 
-    // Check expiry
+    // Check expiry using TRUE server time — not the student's device clock
     if (sData.expiresAt && new Date(sData.expiresAt) < now) {
       if (authReady) {
         await updateDoc(doc(db, 'attendance_sessions', sDoc.id), { active: false });
@@ -688,3 +733,4 @@ window.goBack           = goBack;
 window.retryTopic       = retryTopic;
 </script>
 </body>
+</html>
