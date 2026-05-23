@@ -892,7 +892,13 @@ async function createSession(){
   if(!topic){alert('Please enter today\'s topic.');return;}
   const btn=document.getElementById('createSessionBtn');
   btn.disabled=true;btn.innerHTML='<span class="spinner-dark"></span> Creating...';
-  const code=genCode();const now=new Date();
+  const code=genCode();
+  // Fetch server time so expiresAt is based on true UTC, not instructor's device clock
+  let now=new Date();
+  try{
+    const tr=await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC',{cache:'no-store'});
+    if(tr.ok){const td=await tr.json();now=new Date(td.utc_datetime);}
+  }catch(e){/* use device time if API unreachable */}
   const expiresAt=new Date(now.getTime()+30*60*1000);
   try{
     const {addDoc,collection}=window.FS;
